@@ -1,0 +1,75 @@
+.TH P1 "System Calls"
+
+.SH NAME
+.P
+P1 - System Calls
+
+.SH SYNOPSIS
+.P
+The main purpose of this project was to learn about invoking system calls from the kernel via a user program.
+
+.SH DESCRIPTION
+.P
+The project added a system-wide process log level attribute to the kernel using three system calls: to "get" the process log level, "set" the process log level, or "add" a message to the kernel log at a defined log level. To invoke these calls, a static library of functions was created in the user space with harness functions to verify their security.
+
+From /usr/rep/src/reptilian-kernel :
+
+/arch/x86/entry/syscalls/syscall_64.tbl
+.RS
+To modify the linux kernel: add entries to system call table, declare prototypes, and define the system calls. The first step involves locating the system call table with the appropriate architecture which for this is x86 and 64-bit. Inside the table, three entries were added near the bottom because every system call needs an associated system call number corresponding to its position in the table.
+.RE
+
+/include/linux/syscalls.h
+.RS
+The second step is to declare prototypes of the system calls in the system call header file. Here, the "asmlinkage" flag is used to avoid dependence on registers and instead tells compiler to limit function to the CPU stack only.
+.RE
+
+/include/kernel/sys.c
+.RS
+The final step is defining these system calls including adding and intializing the global variable for the process log level.This is initialized to 0 so on boot a message is only logged if it has an emergency log level. This file contains all the defintions for the system calls which were entered in syscall_64.tbl and declared in syscalls.h. 
+.RE
+
+From /home/reptilian:
+
+/process_log
+.RS
+Created a directory from which the system calls will be invoked via a static library of functions.
+.RE
+
+/process_log/process_log.h
+.RS
+First added the declarations for the library functions. These functions include 3 library functions (1 to invoke each system call) and 5 harness functions to test the security of invoking the system calls from the library. Also at the top of this document the system call number (from location in syscall table) was defined for each function so that it could be used during syscalls().
+.RE
+
+/process_log/process_log.c
+.RS
+The functions were defined using the format: syscall(call_num, param1, param2). Also defined here were the harness functions. The retrieve functions used the "malloc" command to allocate an array that would contain at most 4 values used to get or set the process log level via the appropriate system call. The interpret functions were used to check that the correct value was returned from the respective function's interpretation of the system call.
+.RE
+
+/process_log/makefile
+.RS
+This makefile was used to compile the library and create files libprocess_log.a and process_log.o in the process_log directory.
+.RE
+
+/home/reptilian
+.RS
+Created a compressed tar.gz file "process_log.tar.gz" containing the process_log static library (useful for testing).
+.RE
+
+.SH TESTING
+.P
+After performing all of these changes, a patch file "p1.diff" was created which contained the changes to all files in the /usr/rep/src/reptilian-kernel directory. This patch file was saved and applied to a fresh kernel to test that everything worked. After remaking and rebooting, all the changes were applied to the kernel. The compressed process_log directory was tested by unzipping the process_log.tar.gz file, changing into the process_log directory and running "make" to see that it compiled. After this, the src test files from Canvas were sftp'd in to the same directory as the process_log directory. From here, I linked against the library using the files "library_test.cpp" and "harness_test.cpp". Once these were linked, running ./library_test and ./harness_test produced output of running test cases and found that the implementation was correct. 
+
+.SH LINK
+.P
+https://youtu.be/jfmRiRcp-Vs
+
+.SH REFERENCES/CITATIONS
+.P
+https://ufl.instructure.com/files/75656694/download?download_frd=1
+.P
+https://www.cise.ufl.edu/research/reptilian/wiki/doku.php?id=modifying_the_linux_kernel
+
+.SH AUTHOR
+.P
+Michael Gerber

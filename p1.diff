@@ -1,0 +1,124 @@
+diff --git a/arch/x86/entry/syscalls/syscall_64.tbl b/arch/x86/entry/syscalls/syscall_64.tbl
+index bbfc6d440870..1ff1af39b038 100644
+--- a/arch/x86/entry/syscalls/syscall_64.tbl
++++ b/arch/x86/entry/syscalls/syscall_64.tbl
+@@ -345,7 +345,9 @@
+ 334	common	rseq			__x64_sys_rseq
+ 424	common	pidfd_send_signal	__x64_sys_pidfd_send_signal
+ 434	common	pidfd_open		__x64_sys_pidfd_open
+-
++435	common	get_proc_log_level	__x64_sys_get_proc_log_level
++436	common  set_proc_log_level	__x64_sys_set_proc_log_level
++437	common	proc_log_message	__x64_sys_proc_log_message
+ #
+ # x32-specific system call numbers start at 512 to avoid cache impact
+ # for native 64-bit operation. The __x32_compat_sys stubs are created
+diff --git a/include/linux/syscalls.h b/include/linux/syscalls.h
+index 8e5b2c6d5dea..cd45b8238ba5 100644
+--- a/include/linux/syscalls.h
++++ b/include/linux/syscalls.h
+@@ -1297,4 +1297,9 @@ static inline unsigned int ksys_personality(unsigned int personality)
+ 	return old;
+ }
+ 
++//	P1 - Syscall prototype declarations
++asmlinkage int sys_get_proc_log_level(void);
++asmlinkage int sys_set_proc_log_level(int new_level);
++asmlinkage int sys_proc_log_message(char* message, int level);
++
+ #endif
+diff --git a/kernel/sys.c b/kernel/sys.c
+index 0a1cdee858de..d61ebe2634c5 100644
+--- a/kernel/sys.c
++++ b/kernel/sys.c
+@@ -75,6 +75,9 @@
+ 
+ #include "uid16.h"
+ 
++// Initialize global variable for process log level to 0
++int logLevel = 0;
++
+ #ifndef SET_UNALIGN_CTL
+ # define SET_UNALIGN_CTL(a, b)	(-EINVAL)
+ #endif
+@@ -2806,4 +2809,80 @@ COMPAT_SYSCALL_DEFINE1(sysinfo, struct compat_sysinfo __user *, info)
+ 
+ 	return 0;
+ }
++
++//	P1 - Syscall definitions
++
++// 1) "get" the current process log level
++SYSCALL_DEFINE0(get_proc_log_level){
++	return logLevel;
++}
++
++// 2) "set" the current process log level (if have access)
++SYSCALL_DEFINE1(set_proc_log_level, int, level){
++	if(current_euid().val == 0 && level >= 0 && level <= 7)
++	{
++		logLevel = level;
++		return logLevel;
++	}
++	return -1;
++}
++
++// 3) add message to kernel log if level < logLevel
++SYSCALL_DEFINE2(proc_log_message, char*, message, int, level){
++    int pid = current->pid;
++    char* executable = current->comm;
++
++    if (level < 0 || level > 7)
++    {
++        return -1;
++    }
++
++    // if log level is less than (more severe) than current logLevel, add message to kernel log
++    if (level <= logLevel)
++    {
++        /*
++            logged message format:
++
++            "$log_level_name [$executable, $pid]: $message"
++        */
++        if (level == 0)
++        {
++            pr_emerg("PROC_OVERRIDE [%s, %d]: %s \n", executable, pid, message);
++        }
++        if (level == 1)
++        {
++            pr_alert("PROC_ALERT [%s, %d]: %s \n", executable, pid, message);
++        }
++        if (level == 2)
++        {
++            pr_crit("PROC_CRITICAL [%s, %d]: %s \n", executable, pid, message);
++        }
++        if (level == 3)
++        {
++            pr_err("PROC_ERROR [%s, %d]: %s \n", executable, pid, message);
++        }
++        if (level == 4)
++        {
++            pr_warn("PROC_WARNING [%s, %d]: %s \n", executable, pid, message);
++        }
++        if (level == 5)
++        {
++            pr_notice("PROC_NOTICE [%s, %d]: %s \n", executable, pid, message);
++        }
++        if (level == 6)
++        {
++            pr_info("PROC_INFO [%s, %d]: %s \n", executable, pid, message);
++        }
++        if (level == 7)
++        {
++            pr_debug("PROC_DEBUG [%s, %d]: %s \n", executable, pid, message);
++        }
++        return level;
++    }
++    else
++    {
++        return level;
++    }
++}
++
+ #endif /* CONFIG_COMPAT */
